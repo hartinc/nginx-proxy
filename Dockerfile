@@ -29,6 +29,9 @@ COPY network_internal.conf /etc/nginx/
 COPY . /app/
 WORKDIR /app/
 
+RUN chmod +x /app/docker-entrypoint.sh
+RUN chmod +x /app/generate-dhparam.sh
+
 ENV DOCKER_HOST unix:///tmp/docker.sock
 
 VOLUME ["/etc/nginx/certs", "/etc/nginx/dhparam"]

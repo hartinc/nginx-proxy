@@ -430,7 +430,7 @@ server {
 
 	location / {
 
-		proxy_pass {{ trim $proto }}://{{ trim $upstream_name }};
+		proxy_pass {{ trim $proto }}://{{ trim $upstream_name }}:{{ $external_browsersync_port }};
 
 		{{ if (exists (printf "/etc/nginx/htpasswd/%s" $host)) }}
 		auth_basic	"Restricted {{ $host }}";
@@ -448,6 +448,42 @@ server {
 {{ end }}
 
 
+{{ if $external_browsersync_ui_port }}
 
+server {
+	server_name {{ $host }};
+	listen {{ $external_browsersync_ui_port }} {{ $default_server }};
+
+	access_log /var/log/nginx/access.log vhost;
+
+	{{ if eq $network_tag "internal" }}
+	# Only allow traffic from internal clients
+	include /etc/nginx/network_internal.conf;
+	{{ end }}
+
+	{{ if (exists (printf "/etc/nginx/vhost.d/%s" $host)) }}
+	include {{ printf "/etc/nginx/vhost.d/%s" $host }};
+	{{ else if (exists "/etc/nginx/vhost.d/default") }}
+	include /etc/nginx/vhost.d/default;
+	{{ end }}
+
+	location / {
+
+		proxy_pass {{ trim $proto }}://{{ trim $upstream_name }}:{{ $external_browsersync_ui_port }};
+
+		{{ if (exists (printf "/etc/nginx/htpasswd/%s" $host)) }}
+		auth_basic	"Restricted {{ $host }}";
+		auth_basic_user_file	{{ (printf "/etc/nginx/htpasswd/%s" $host) }};
+		{{ end }}
+
+		{{ if (exists (printf "/etc/nginx/vhost.d/%s_location" $host)) }}
+		include {{ printf "/etc/nginx/vhost.d/%s_location" $host}};
+		{{ else if (exists "/etc/nginx/vhost.d/default_location") }}
+		include /etc/nginx/vhost.d/default_location;
+		{{ end }}
+	}
+}
+
+{{ end }}
 
 {{ end }}
