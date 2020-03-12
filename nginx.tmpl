@@ -213,6 +213,77 @@ upstream {{ $upstream_name }} {
 {{ end }}
 }
 
+{{ if $external_browsersync_port }}
+
+# {{ $host }} browsersync
+upstream {{ $upstream_name }}_browsersync {
+
+{{ range $container := $containers }}
+	{{ $addrLen := len $container.Addresses }}
+
+	{{ range $knownNetwork := $CurrentContainer.Networks }}
+		{{ range $containerNetwork := $container.Networks }}
+			{{ if (and (ne $containerNetwork.Name "ingress") (or (eq $knownNetwork.Name $containerNetwork.Name) (eq $knownNetwork.Name "host"))) }}
+				## Can be connected with "{{ $containerNetwork.Name }}" network
+
+				{{/* If only 1 port exposed, use that */}}
+				{{ if eq $addrLen 1 }}
+					# Cannot connect to network of this container since browsersync port is not exposed
+					server 127.0.0.1 down;
+				{{/* If more than one port exposed, use the one matching VIRTUAL_PORT env var, falling back to standard web port 80 */}}
+				{{ else }}
+					{{ $port := coalesce $container.Env.VIRTUAL_PORT $external_browsersync_port }}
+					{{ $address := where $container.Addresses "Port" $port | first }}
+					{{ template "upstream" (dict "Container" $container "Address" $address "Network" $containerNetwork) }}
+				{{ end }}
+			{{ else }}
+				# Cannot connect to network of this container
+				server 127.0.0.1 down;
+			{{ end }}
+		{{ end }}
+	{{ end }}
+{{ end }}
+}
+
+{{ end }}
+
+
+{{ if $external_browsersync_ui_port }}
+
+# {{ $host }} browsersync ui
+upstream {{ $upstream_name }}_browsersync_ui {
+
+{{ range $container := $containers }}
+	{{ $addrLen := len $container.Addresses }}
+
+	{{ range $knownNetwork := $CurrentContainer.Networks }}
+		{{ range $containerNetwork := $container.Networks }}
+			{{ if (and (ne $containerNetwork.Name "ingress") (or (eq $knownNetwork.Name $containerNetwork.Name) (eq $knownNetwork.Name "host"))) }}
+				## Can be connected with "{{ $containerNetwork.Name }}" network
+
+				{{/* If only 1 port exposed, use that */}}
+				{{ if eq $addrLen 1 }}
+					# Cannot connect to network of this container since browsersync ui port is not exposed
+					server 127.0.0.1 down;
+				{{/* If more than one port exposed, use the one matching VIRTUAL_PORT env var, falling back to standard web port 80 */}}
+				{{ else }}
+					{{ $port := coalesce $container.Env.VIRTUAL_PORT $external_browsersync_ui_port }}
+					{{ $address := where $container.Addresses "Port" $port | first }}
+					{{ template "upstream" (dict "Container" $container "Address" $address "Network" $containerNetwork) }}
+				{{ end }}
+			{{ else }}
+				# Cannot connect to network of this container
+				server 127.0.0.1 down;
+			{{ end }}
+		{{ end }}
+	{{ end }}
+{{ end }}
+}
+
+{{ end }}
+
+
+
 {{ $default_host := or ($.Env.DEFAULT_HOST) "" }}
 {{ $default_server := index (dict $host "" $default_host "default_server") $host }}
 
@@ -261,7 +332,7 @@ server {
 	{{ end }}
 	access_log /var/log/nginx/access.log vhost;
 	
-	# Do not HTTPS redirect Let'sEncrypt ACME challenge
+	# Do not HTTPS redirect LetsEncrypt ACME challenge
 	location /.well-known/acme-challenge/ {
 		auth_basic off;
 		allow all;
@@ -430,7 +501,7 @@ server {
 
 	location / {
 
-		proxy_pass {{ trim $proto }}://{{ trim $upstream_name }}:{{ $external_browsersync_port }};
+		proxy_pass {{ trim $proto }}://{{ trim $upstream_name }}_browsersync;
 
 		{{ if (exists (printf "/etc/nginx/htpasswd/%s" $host)) }}
 		auth_basic	"Restricted {{ $host }}";
@@ -469,7 +540,7 @@ server {
 
 	location / {
 
-		proxy_pass {{ trim $proto }}://{{ trim $upstream_name }}:{{ $external_browsersync_ui_port }};
+		proxy_pass {{ trim $proto }}://{{ trim $upstream_name }}_browsersync_ui;
 
 		{{ if (exists (printf "/etc/nginx/htpasswd/%s" $host)) }}
 		auth_basic	"Restricted {{ $host }}";
